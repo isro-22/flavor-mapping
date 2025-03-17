@@ -6,37 +6,37 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder
 
-# Judul aplikasi
-st.set_page_config(layout="wide")  # Mengatur tampilan menjadi fullscreen
+# Application title
+st.set_page_config(layout="wide")  # Set the display to fullscreen
 st.title("Flavor Mapping Viewer")
 
-# Upload file
-uploaded_file = st.file_uploader("Upload file Excel", type=["xlsx"])
+# File upload
+uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 
 if uploaded_file:
-    # Tombol manual untuk refresh data
+    # Manual button to refresh data
     if st.button("Refresh Data"):
         st.experimental_rerun()
     
-    # Membaca file Excel
+    # Read the Excel file
     df = pd.read_excel(uploaded_file)
     
-    # Pastikan kolom "Dosage (%)" bertipe numerik
+    # Ensure the "Dosage (%)" column is numeric
     df["Dosage (%)"] = pd.to_numeric(df["Dosage (%)"], errors='coerce')
     
-    # Pastikan kolom Character ada dalam dataset
+    # Ensure the "Character" column exists in the dataset
     if "Character" not in df.columns:
         df["Character"] = ""
     
-    # Pilihan filter berdasarkan Flavor Group, diurutkan sesuai abjad
+    # Filter selection based on Flavor Group, sorted alphabetically
     flavor_groups = sorted(df["Flavor Group"].dropna().unique())
-    selected_flavor_group = st.selectbox("Pilih Flavor Group", ["All"] + list(flavor_groups))
+    selected_flavor_group = st.selectbox("Select Flavor Group", ["All"] + list(flavor_groups))
     
-    # Filter data berdasarkan pilihan pengguna
+    # Filter data based on user selection
     if selected_flavor_group != "All":
         df = df[df["Flavor Group"] == selected_flavor_group]
     
-    # Membuat pivot table
+    # Create pivot table
     pivot_table = pd.pivot_table(
         df, 
         values="Dosage (%)", 
@@ -46,20 +46,20 @@ if uploaded_file:
         fill_value=0
     )
     
-    # Konversi semua nilai dalam pivot table menjadi float dan ganti NaN dengan 0
+    # Convert all values in the pivot table to float and replace NaN with 0
     pivot_table = pivot_table.astype(float).fillna(0)
     
-    # Menentukan nilai maksimum dan minimum untuk color scale per kolom (Flavor Code)
+    # Determine the maximum and minimum values for color scale per column (Flavor Code)
     col_mins = pivot_table.min()
     col_maxs = pivot_table.max()
     
     def color_scale_per_column(val, col_min, col_max):
         if isinstance(val, (int, float)):
             if val == 0:
-                return "background-color: #D3D3D3; color: black;"  # Blok abu-abu untuk nilai nol
+                return "background-color: #D3D3D3; color: black;"  # Gray block for zero values
             normalized = (val - col_min) / (col_max - col_min) if col_max > col_min else 0.5
-            r = int(200 * (1 - normalized) + 55)  # Lebih smooth gradasi
-            g = int(200 * normalized + 55)  # Lebih smooth gradasi
+            r = int(200 * (1 - normalized) + 55)  # Smoother gradient
+            g = int(200 * normalized + 55)  # Smoother gradient
             b = 50
             return f"background-color: rgb({r},{g},{b}); color: black;"
         return ""
@@ -120,16 +120,16 @@ if uploaded_file:
     
     csv = pivot_table.to_csv(float_format="%.4f").encode("utf-8")
     st.download_button(
-        "Download hasil sebagai CSV", csv, "pivot_table.csv", "text/csv"
+        "Download result as CSV", csv, "pivot_table.csv", "text/csv"
     )
 
-# Layout 3 kolom untuk menampilkan grafik
+# Layout with 3 columns to display charts
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write("### 📊 Grafik Bar Berdasarkan Group") 
+        st.write("### 📊 Bar Chart by Group") 
         group_data = df.groupby("Group")["Dosage (%)"].sum().reset_index()
-        fig, ax = plt.subplots(figsize=(6, 4))  # Ukuran lebih kecil
+        fig, ax = plt.subplots(figsize=(6, 4))  # Smaller size
         sns.barplot(x="Group", y="Dosage (%)", data=group_data, ax=ax, palette="viridis")
         ax.set_xlabel("Group")
         ax.set_ylabel("Total Dosage (%)")
@@ -138,7 +138,7 @@ if uploaded_file:
         st.pyplot(fig)
     
     with col2:
-        st.write("### 📊 Grafik Bar Berdasarkan Flavor Code")
+        st.write("### 📊 Bar Chart by Flavor Code")
         for flavor_code in df["Flavor Code"].dropna().unique():
             st.write(f"#### {flavor_code}")
             flavor_data = df[df["Flavor Code"] == flavor_code].groupby("Group")["Dosage (%)"].sum().reset_index()
@@ -151,7 +151,7 @@ if uploaded_file:
             st.pyplot(fig)
     
     with col3:
-        st.write("### 📊 Grafik Distribusi Dosage (%)")
+        st.write("### 📊 Dosage (%) Distribution Chart")
         fig, ax = plt.subplots(figsize=(6, 4))
         sns.histplot(df["Dosage (%)"], bins=20, kde=True, color="blue", ax=ax)
         ax.set_xlabel("Dosage (%)")
@@ -159,24 +159,27 @@ if uploaded_file:
         ax.set_title("Distribution of Dosage (%)")
         st.pyplot(fig)
 
-# Membuat dua kolom untuk heatmap dan AI Clustering
+
+
+
+# Create two columns for heatmap and AI Clustering
     col1, col2 = st.columns(2)
     
     with col1:
-        st.write("### Heatmap Korelasi")
+        st.write("### Correlation Heatmap")
         correlation_matrix = pivot_table.corr()
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax)
         ax.set_title("Correlation Heatmap of Flavor Codes")
         st.pyplot(fig)
-    
+   
     with col2:
-        st.write("### Clustering Karakter menggunakan K-Means")
+        st.write("### Character Clustering using K-Means")
         if not df["Character"].isnull().all():
             le = LabelEncoder()
             df["Character_Encoded"] = le.fit_transform(df["Character"].astype(str))
             
-            num_clusters = st.slider("Pilih jumlah cluster:", min_value=2, max_value=10, value=3)
+            num_clusters = st.slider("Select number of clusters:", min_value=2, max_value=10, value=3)
             
             kmeans = KMeans(n_clusters=num_clusters, random_state=42)
             df["Cluster"] = kmeans.fit_predict(df[["Character_Encoded", "Dosage (%)"]].dropna())
@@ -187,32 +190,91 @@ if uploaded_file:
             ax.set_ylabel("Character")
             ax.set_title("Clustering Distribution of Character using K-Means")
             st.pyplot(fig)
-    
-    # Analisis clustering
-    st.write("### Analisis Clustering K-Means")
-    st.markdown(
-        """
-        **Interpretasi Clustering K-Means:**
-        - AI mengelompokkan karakter berdasarkan **kesamaan pola pemakaian Flavor Code** dan **dosage (%)**.
-        - Setiap warna dalam scatter plot menunjukkan kelompok berbeda yang memiliki karakteristik yang mirip.
-        - Cluster ini dapat membantu dalam memahami pola penggunaan Flavor Code dalam berbagai karakter.
-        
-        **Manfaat Clustering ini:**
-        - Mengidentifikasi **karakter yang sering digunakan bersama**.
-        - Membantu formulasi dengan menemukan pola tersembunyi dari distribusi karakter.
-        - Memberikan insight apakah ada karakter yang memiliki **penggunaan yang sangat unik atau mirip dengan lainnya**.
-        """
-    )
-    
+      
+    # Create two columns for Heatmap Interpretation and Clustering Analysis
+col1, col2 = st.columns(2)
 
-    # Footer about program
-    st.markdown("---")
+with col1:
+    # Heatmap Interpretation in a card-like layout
     st.markdown(
         """
-        ### About Program
-        - **Program Analisis Data** untuk memvisualisasikan hubungan antar Flavor Code dan pola penggunaannya.
-        - Dilengkapi dengan **Heatmap Korelasi** untuk melihat keterkaitan antar Flavor Code.
-        - Menggunakan **K-Means Clustering AI** untuk menganalisis persebaran karakter dalam dataset.
-        - Dibuat dengan ❤️ oleh **Mr-XP**.
-        """
+        <div style="
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            background-color: #f9f9f9;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        ">
+        <h4 style="color: #2e86c1;">Heatmap Interpretation</h4>
+        <p>
+        <strong>Interpretation of Correlation Heatmap:</strong><br>
+        - The heatmap shows the <strong>correlation between Flavor Codes</strong> based on their usage patterns.<br>
+        - <strong>Values range from -1 to 1:</strong><br>
+          &nbsp;&nbsp;- <strong>1</strong>: Perfect positive correlation (Flavor Codes are used together frequently).<br>
+          &nbsp;&nbsp;- <strong>-1</strong>: Perfect negative correlation (Flavor Codes are rarely used together).<br>
+          &nbsp;&nbsp;- <strong>0</strong>: No correlation (Flavor Codes have no relationship in usage).<br>
+        - <strong>Warm colors (red/orange)</strong>: Indicate strong positive correlations.<br>
+        - <strong>Cool colors (blue)</strong>: Indicate strong negative correlations.<br>
+        - <strong>Insights:</strong><br>
+          &nbsp;&nbsp;- Identify <strong>Flavor Codes that are often used together</strong> (high positive correlation).<br>
+          &nbsp;&nbsp;- Detect <strong>Flavor Codes that are mutually exclusive</strong> (high negative correlation).<br>
+          &nbsp;&nbsp;- Understand <strong>which Flavor Codes have no relationship</strong> (values close to 0).<br>
+        </p>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
+
+# Add a visual divider between the two columns
+st.divider()
+
+with col2:
+    # Clustering Analysis in a card-like layout
+    st.markdown(
+        """
+        <div style="
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            background-color: #f9f9f9;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        ">
+        <h4 style="color: #2e86c1;">K-Means Clustering Analysis</h4>
+        <p>
+        <strong>K-Means Clustering Interpretation:</strong><br>
+        - AI groups characters based on <strong>similar usage patterns of Flavor Code</strong> and <strong>dosage (%)</strong>.<br>
+        - Each color in the scatter plot represents a different group with similar characteristics.<br>
+        - These clusters can help in understanding the usage patterns of Flavor Code across different characters.<br>
+        
+        <strong>Benefits of Clustering:</strong><br>
+        - Identify <strong>characters that are often used together</strong>.<br>
+        - Assist in formulation by uncovering hidden patterns in character distribution.<br>
+        - Provide insights into whether there are characters with <strong>unique or similar usage patterns</strong>.<br>
+        </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Footer About the Program
+st.markdown(
+    """
+    <div style="
+        padding: 20px;
+        background-color: #2e86c1;
+        color: white;
+        border-radius: 10px;
+        margin-top: 40px;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    ">
+    <h3 style="text-align: center; color: white;">About the Program</h3>
+    <p style="text-align: center;">
+        This <strong>Data Analysis Program</strong> is designed to visualize the relationships between Flavor Codes and their usage patterns.<br>
+        Equipped with a <strong>Correlation Heatmap</strong> to see the relationships between Flavor Codes.<br>
+        Uses <strong>K-Means Clustering AI</strong> to analyze the distribution of characters in the dataset.<br>
+        Made with ❤️ by <strong>Mr-XP</strong>.
+    </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
