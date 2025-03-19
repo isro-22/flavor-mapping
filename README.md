@@ -31,6 +31,6 @@ Flavor Mapping Viewer is a data visualization and analysis tool built with Strea
 You can access the program that already deploy, follow this link
 
 ```bash
-[https://flavor-mapping-6vdojhfqjmuxsg4aft9ft6.streamlit.app/](https://flavor-mapping-gxlm6elj23bglmlzc9ptox.streamlit.app/)
+https://flavor-mapping-gxlm6elj23bglmlzc9ptox.streamlit.app/
 
 
