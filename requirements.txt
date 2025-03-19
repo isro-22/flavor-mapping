@@ -1,8 +1,6 @@
-streamlit
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
-openpyxl
-sqlite3
+streamlit==1.26.0
+pandas==2.0.3
+sqlite3==0.0.1
+matplotlib==3.7.2
+seaborn==0.12.2
+numpy==1.24.3
