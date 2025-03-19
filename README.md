@@ -21,8 +21,8 @@ https://flavor-mapping-gxlm6elj23bglmlzc9ptox.streamlit.app/
  - Filter by Flavor Group
  - Generate pivot tables for analysis
 
-**3. Interactive Visualizations
-**
+**3. Interactive Visualizations**
+
 - Bar charts for dosage distribution
 - Heatmap for correlation analysis
 - K-Means clustering for character grouping
