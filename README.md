@@ -6,13 +6,13 @@ Flavor Mapping Viewer is a data visualization and analysis tool built with Strea
 
 1. Upload & Process Data
 
+ - Supports Excel (.xlsx) and SQL (.sql) file uploads
+ - Automatically reads and cleans data
+   
+2. Data Filtering & Pivot Table
 
-Supports Excel (.xlsx) and SQL (.sql) file uploads
-Automatically reads and cleans data
-✅ Data Filtering & Pivot Table
-
-Filter by Flavor Group
-Generate pivot tables for analysis
+ - Filter by Flavor Group
+ - Generate pivot tables for analysis
 ✅ Interactive Visualizations
 
 Bar charts for dosage distribution
