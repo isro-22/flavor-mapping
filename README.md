@@ -4,26 +4,28 @@ Flavor Mapping Viewer is a data visualization and analysis tool built with Strea
 
 🚀 Features
 
-##1. Upload & Process Data
+1. Upload & Process Data
 
  - Supports Excel (.xlsx) and SQL (.sql) file uploads
  - Automatically reads and cleans data
    
-##2. Data Filtering & Pivot Table
+2. Data Filtering & Pivot Table
 
  - Filter by Flavor Group
  - Generate pivot tables for analysis
-✅ Interactive Visualizations
 
-Bar charts for dosage distribution
-Heatmap for correlation analysis
-K-Means clustering for character grouping
-✅ Built with:
+3. Interactive Visualizations
 
-Streamlit for UI
-Pandas, NumPy for data processing
-Matplotlib, Seaborn for visualization
-SQLite for handling SQL files
+- Bar charts for dosage distribution
+- Heatmap for correlation analysis
+- K-Means clustering for character grouping
+
+4. Built with:
+
+- Streamlit for UI
+- Pandas, NumPy for data processing
+- Matplotlib, Seaborn for visualization
+- SQLite for handling SQL files
 
 
 You can access the program that already deploy, follow this link
