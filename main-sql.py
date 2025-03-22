@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import plotly.express as px
-
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder
 
@@ -35,33 +34,79 @@ st.sidebar.markdown(
 )
 
 
+# Cache data processing functions
+@st.cache_data  # Use st.cache_data for caching data
+def load_data(uploaded_file):
+    if uploaded_file.name.endswith('.xlsx'):
+        df = pd.read_excel(uploaded_file)
+    elif uploaded_file.name.endswith('.sql'):
+        df = process_sql_file(uploaded_file)
+    return df
+
+
+@st.cache_data  # Use st.cache_data for caching data
+def process_sql_file(uploaded_file):
+    sql_file = uploaded_file.read().decode('utf-8')
+    sql_file = re.sub(r'\bnan\b', 'NULL', sql_file)
+
+    conn = sqlite3.connect(':memory:')
+    cursor = conn.cursor()
+    cursor.executescript(sql_file)
+
+    tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
+    table_names = [t[0] for t in tables]
+
+    if "flavor_data" in table_names:
+        df = pd.read_sql_query("SELECT * FROM flavor_data", conn)
+    else:
+        st.error("Table 'flavor_data' not found in SQL file!")
+        return None
+
+    conn.close()
+    return df
+
+
+def standardize_column_names(df):
+    rename_map = {
+        "Dosage (%)": "Dosage_()",
+        "Flavor Code": "Flavor_Code",
+        'Functional Group': "Functional_Group",
+        'Flavor Group': "Flavor_Group",
+        'Character Group': "Character_Group"
+    }
+    return df.rename(columns=rename_map)
+
+
+def clean_and_prepare_data(df):
+    df["Dosage_()"] = pd.to_numeric(df["Dosage_()"], errors='coerce')
+    df.dropna(subset=["Dosage_()"], inplace=True)
+    df = df[df["Flavor_Code"].notna()]
+    df["Functional_Group"].fillna("", inplace=True)
+    if "Character" not in df.columns:
+        df["Character"] = ""
+    df["Character"].fillna("", inplace=True)
+    return df
+
+
 # Page 1: Flavor Mapping Viewer
 class FlavorMappingViewer:
     def __init__(self):
         st.title("Flavor Mapping Viewer")
 
-        # Jika data sudah ada, gunakan langsung tanpa perlu upload ulang
         if "shared_data" in st.session_state and "file_name" in st.session_state:
             st.success(f"Using previously uploaded file: {st.session_state['file_name']}")
             self.df = st.session_state["shared_data"]
-            self.display_data()  # 🔹 Langsung tampilkan data tanpa proses ulang
+            self.display_data()
         else:
             self.uploaded_file = st.file_uploader("Upload Excel or SQL file", type=["xlsx", "sql"])
             if self.uploaded_file:
-                st.session_state["file_name"] = self.uploaded_file.name  # Simpan nama file
-                if st.button("Load Data"):  # Pemrosesan hanya terjadi saat tombol ditekan
-                    self.process_file()
-
-    def standardize_column_names(self):
-        """Normalize column names to ensure consistency across file formats."""
-        rename_map = {
-            "Dosage (%)": "Dosage_()",
-            "Flavor Code": "Flavor_Code",
-            'Functional Group': "Functional_Group",
-            'Flavor Group': "Flavor_Group",
-            'Character Group': "Character_Group"
-        }
-        self.df.rename(columns=rename_map, inplace=True)
+                st.session_state["file_name"] = self.uploaded_file.name
+                if st.button("Load Data"):
+                    self.df = load_data(self.uploaded_file)
+                    self.df = standardize_column_names(self.df)
+                    self.df = clean_and_prepare_data(self.df)
+                    st.session_state["shared_data"] = self.df
+                    self.display_data()
 
     def display_data(self):
         self.filter_data()
@@ -69,55 +114,7 @@ class FlavorMappingViewer:
         self.display_pivot_table()
         self.display_charts()
         self.display_heatmap_and_clustering()
-        self.footer_web()
-
-    def process_file(self):
-        if self.uploaded_file.name.endswith('.xlsx'):
-            self.df = pd.read_excel(self.uploaded_file)
-        elif self.uploaded_file.name.endswith('.sql'):
-            self.process_sql_file()
-
-        self.standardize_column_names()
-        self.clean_and_prepare_data()
-
-        # 🔹 Simpan hasil ke session_state
-        st.session_state["shared_data"] = self.df
-
-        # 🔹 Tampilkan data langsung setelah proses selesai
-        self.display_data()
-
-    def process_sql_file(self):
-        sql_file = self.uploaded_file.read().decode('utf-8')
-        sql_file = re.sub(r'\bnan\b', 'NULL', sql_file)
-
-        try:
-            conn = sqlite3.connect(':memory:')
-            cursor = conn.cursor()
-            cursor.executescript(sql_file)
-
-            # 🔹 Cek tabel yang ada di database
-            tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
-            table_names = [t[0] for t in tables]
-
-            if "flavor_data" in table_names:
-                self.df = pd.read_sql_query("SELECT * FROM flavor_data", conn)
-            else:
-                st.error("Table 'flavor_data' not found in SQL file!")
-                return
-
-            conn.close()
-        except sqlite3.OperationalError as e:
-            st.error(f"SQL Error: {e}")
-            st.stop()
-
-    def clean_and_prepare_data(self):
-        self.df["Dosage_()"] = pd.to_numeric(self.df["Dosage_()"], errors='coerce')
-        self.df.dropna(subset=["Dosage_()"], inplace=True)
-        self.df = self.df[self.df["Flavor_Code"].notna()]
-        self.df["Functional_Group"].fillna("", inplace=True)
-        if "Character" not in self.df.columns:
-            self.df["Character"] = ""
-        self.df["Character"].fillna("", inplace=True)
+        display_footer()
 
     def filter_data(self):
         flavor_groups = sorted(self.df["Flavor_Group"].dropna().unique())
@@ -231,7 +228,6 @@ class FlavorMappingViewer:
 
         with col1:
             st.write("### Correlation Heatmap")
-            # Ensure only numeric columns are used
             numeric_columns = self.pivot_table.select_dtypes(include=[np.number])
             correlation_matrix = numeric_columns.corr()
 
@@ -243,16 +239,13 @@ class FlavorMappingViewer:
         with col2:
             st.write("### Character Clustering using K-Means")
             if not self.df["Character"].isnull().all():
-                # Encode the Character column into numeric
                 le = LabelEncoder()
                 self.df["Character_Encoded"] = le.fit_transform(self.df["Character"].astype(str))
 
-                # Use numeric columns for clustering
                 num_clusters = st.slider("Select number of clusters:", min_value=2, max_value=10, value=3)
                 kmeans = KMeans(n_clusters=num_clusters, random_state=42)
                 self.df["Cluster"] = kmeans.fit_predict(self.df[["Character_Encoded", "Dosage_()"]].dropna())
 
-                # Display scatter plot
                 fig, ax = plt.subplots(figsize=(10, 6))
                 sns.scatterplot(x=self.df["Dosage_()"], y=self.df["Character"], hue=self.df["Cluster"],
                                 palette="viridis", ax=ax)
@@ -261,12 +254,10 @@ class FlavorMappingViewer:
                 ax.set_title("Clustering Distribution of Character using K-Means")
                 st.pyplot(fig)
 
-        # Add heatmap and clustering analysis interpretation
-        st.markdown("---")  # Divider visual
+        st.markdown("---")
         col1, col2 = st.columns(2)
 
         with col1:
-            # Heatmap Interpretation in a card-like layout
             st.markdown(
                 """
                 <div style="
@@ -296,11 +287,9 @@ class FlavorMappingViewer:
                 unsafe_allow_html=True
             )
 
-        # Add a visual divider between the two columns
         st.divider()
 
         with col2:
-            # Clustering Analysis in a card-like layout
             st.markdown(
                 """
                 <div style="
@@ -326,30 +315,6 @@ class FlavorMappingViewer:
                 """,
                 unsafe_allow_html=True
             )
-
-    def footer_web(self):
-        # Footer About the Program
-        st.markdown(
-            """
-            <div style="
-                padding: 20px;
-                background-color: #2e86c1;
-                color: white;
-                border-radius: 10px;
-                margin-top: 40px;
-                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-            ">
-            <h3 style="text-align: center; color: white;">About the Program</h3>
-            <p style="text-align: center;">
-                This <strong>Data Analysis Program</strong> is designed to visualize the relationships between Flavor Codes and their usage patterns.<br>
-                Equipped with a <strong>Correlation Heatmap</strong> to see the relationships between Flavor Codes.<br>
-                Uses <strong>K-Means Clustering AI</strong> to analyze the distribution of characters in the dataset.<br>
-                Made with ❤️ by <strong>Mr-XP</strong>.
-            </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
 
 
 # Page 2: Data Reference Pivot Table
@@ -411,26 +376,22 @@ class DataReference:
         pivot_table.reset_index(inplace=True)
         pivot_table.index = pivot_table.index + 1  # Start numbering from 1
 
-        # 🔹 Fungsi styling: Jika nilai 0, warna merah; jika bukan, tetap hitam
         def highlight_zero(val):
             if val == 0:
                 return "color: red;"
             return "color: black;"
 
-        # 🔹 Terapkan styling hanya ke kolom dengan angka (kolom Flavor_Code)
         numeric_columns = pivot_table.columns[2:]  # Semua kolom setelah "Name" & "Character"
         styled_df = pivot_table.style.applymap(highlight_zero, subset=numeric_columns)
 
-        # 🔹 Tambahkan styling untuk kolom Character
         styled_df = styled_df.applymap(lambda x: "font-style: italic; color: purple;", subset=["Character"])
 
-        # 🔹 Tampilkan di Streamlit
-        st.write("### Pivot Table Comparison")
+        st.write("### Table Comparison")
         st.dataframe(styled_df)
 
         self.display_bar_charts(df)
         self.display_sunburst_charts(df)
-        self.footer_web1()
+        display_footer()
 
     def display_bar_charts(self, df):
         st.write("### Dosage Distribution by Flavor Code and Functional Group")
@@ -472,7 +433,7 @@ class DataReference:
             st.pyplot(fig)
 
     def display_sunburst_charts(self, df):
-        st.write("### Sunburst Charts for Each Flavor Code")
+        st.write("### Flavor Whell for Each Flavor Code")
 
         unique_flavor_codes = df["Flavor_Code"].unique()
         cols = st.columns(3)
@@ -481,22 +442,16 @@ class DataReference:
             with cols[i % 3]:
                 st.write(f"#### {flavor_code}")
 
-                # Copy untuk menghindari SettingWithCopyWarning
                 df_flavor = df[df["Flavor_Code"] == flavor_code].copy()
 
-                # Group1 diambil dari kolom 'Character_Group'
                 df_flavor["Group1"] = df_flavor["Character_Group"]
 
-                # Group2 dipisahkan berdasarkan koma dari kolom 'Character'
                 df_flavor["Group2"] = df_flavor["Character"].str.split(",")
 
-                # Mengubah Group2 dari list menjadi baris menggunakan explode()
                 df_flavor = df_flavor.explode("Group2")
 
-                # Menghilangkan baris dengan Group2 kosong atau NaN
                 df_flavor = df_flavor[df_flavor["Group2"].notna() & (df_flavor["Group2"].str.strip() != "")]
 
-                # Membuat sunburst chart
                 fig = px.sunburst(
                     df_flavor,
                     path=["Group1", "Group2"],
@@ -507,30 +462,29 @@ class DataReference:
 
                 st.plotly_chart(fig)
 
-    def footer_web1(self):
-        # Footer About the Program
-        st.markdown(
-            """
-            <div style="
-                padding: 20px;
-                background-color: #2e86c1;
-                color: white;
-                border-radius: 10px;
-                margin-top: 40px;
-                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-            ">
-            <h3 style="text-align: center; color: white;">About the Program</h3>
-            <p style="text-align: center;">
-                This <strong>Data Analysis Program</strong> is designed to visualize the relationships between Flavor Codes and their usage patterns.<br>
-                Equipped with a <strong>Correlation Heatmap</strong> to see the relationships between Flavor Codes.<br>
-                Uses <strong>K-Means Clustering AI</strong> to analyze the distribution of characters in the dataset.<br>
-                Made with ❤️ by <strong>Mr-XP</strong>.
-            </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+# Footer Web
+def display_footer():
+    st.markdown(
+        """
+        <div style="
+            padding: 20px;
+            background-color: #2e86c1;
+            color: white;
+            border-radius: 10px;
+            margin-top: 40px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        ">
+        <h3 style="text-align: center; color: white;">About the Program</h3>
+        <p style="text-align: center;">
+            This <strong>Data Analysis Program</strong> is designed to visualize the relationships between Flavor Codes and their usage patterns.<br>
+            Equipped with a <strong>Correlation Heatmap</strong> to see the relationships between Flavor Codes.<br>
+            Uses <strong>K-Means Clustering AI</strong> to analyze the distribution of characters in the dataset.<br>
+            Made with ❤️ by <strong>Mr-XP</strong>.
+        </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 if page == "Flavor Mapping":
     viewer = FlavorMappingViewer()
