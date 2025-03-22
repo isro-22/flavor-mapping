@@ -190,7 +190,7 @@ class FlavorMappingViewer:
             self.display_dosage_distribution_chart()
 
     def display_functional_group_chart(self):
-        st.write("### 📊 Bar Chart by Functional Group")
+        st.write("### 📊 Chart by Functional Group")
         group_data = self.df.groupby("Functional_Group")["Dosage_()"].sum().reset_index()
         fig, ax = plt.subplots(figsize=(6, 4))
         sns.barplot(x="Functional_Group", y="Dosage_()", data=group_data, ax=ax, palette="viridis")
@@ -201,7 +201,7 @@ class FlavorMappingViewer:
         st.pyplot(fig)
 
     def display_flavor_code_charts(self):
-        st.write("### 📊 Bar Chart by Flavor Code")
+        st.write("### 📊 Chart by Flavor Code")
         unique_flavors = self.df["Flavor_Code"].dropna().unique()
         for flavor_code in unique_flavors:
             flavor_data = self.df[self.df["Flavor_Code"] == flavor_code].groupby("Functional_Group")[
